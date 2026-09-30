@@ -1,10 +1,10 @@
-# Dựng và kiểm tra dashboard
+# Dựng và kiểm tra dashboard Streamlit
 
 [`../config/dashboard.yaml`](../config/dashboard.yaml) là contract chấm điểm, không phụ thuộc việc bạn dựng dashboard trong Langfuse hay một công cụ local. File này quy định đúng nguồn dữ liệu, phép tổng hợp, đơn vị và threshold cho sáu panel.
 
 Trường `query` trong YAML là pseudocode mô tả phép tính, không phải câu lệnh để copy nguyên vào mọi công cụ. Bạn chuyển cùng logic đó sang cú pháp của công cụ đã chọn.
 
-Lab không bắt buộc một công cụ dashboard cụ thể. Bạn có thể dùng Streamlit, notebook, Grafana, script local tạo biểu đồ hoặc công cụ tương đương. Điều quan trọng khi chấm là dashboard runtime có dữ liệu thật từ `data/logs.jsonl`, đủ sáu panel, đọc được time range/đơn vị/threshold và khớp logic trong `config/dashboard.yaml`.
+`dashboard_app.py` dựng dashboard Streamlit từ `data/logs.jsonl`. Ứng dụng đọc log một lần mỗi 30 giây, lọc 60 phút gần nhất theo UTC và hiển thị đúng sáu panel theo thứ tự trong `config/dashboard.yaml`. Dashboard chỉ giữ các field dùng cho số liệu; nó không hiển thị payload, preview, user ID hoặc session ID.
 
 ## Mapping dữ liệu
 
@@ -12,7 +12,7 @@ Lab không bắt buộc một công cụ dashboard cụ thể. Bạn có thể d
 |---|---|---|
 | Latency | `response_sent.latency_ms/ttft_ms` | latency P50/P95/P99 và TTFT P95 |
 | Traffic | `request_received` | count, request/phút |
-| Errors | `request_received`, `request_failed`, `error_type`, `tool_success` | error rate, breakdown và retrieval success |
+| Errors | `request_received`, `response_sent`, `request_failed`, `error_type`, `tool_success` | error rate, breakdown và retrieval success |
 | Cost | `response_sent.cost_usd` | tổng theo phút và toàn cửa sổ |
 | Tokens | `response_sent.tokens_in/tokens_out` | tổng theo từng field |
 | Quality | `response_sent.quality_score` | mean |
@@ -23,7 +23,7 @@ Giữ time range mặc định 60 phút, refresh 30 giây và hiển thị thres
 
 1. Hoàn thiện logging/PII và chạy API.
 2. Chạy `python scripts/load_test.py --concurrency 5` để tạo baseline.
-3. Dùng `data/logs.jsonl` làm nguồn chuẩn để tạo đúng sáu panel bằng Streamlit, notebook, Grafana hoặc công cụ tương đương. Langfuse vẫn là nơi mở trace/prompt version để điều tra sâu.
+3. Mở dashboard Streamlit từ `data/logs.jsonl`. Langfuse vẫn là nơi mở trace và prompt version để điều tra sâu.
 4. Đặt tên panel, đơn vị và threshold giống contract.
 5. Chạy validator:
 
@@ -32,6 +32,22 @@ python scripts/validate_dashboard.py
 ```
 
 Validator kiểm tra cấu trúc contract; nó không thể chứng minh biểu đồ trong ảnh dùng đúng dữ liệu. Evidence runtime vẫn bắt buộc.
+
+## Chạy dashboard trong môi trường riêng
+
+Từ thư mục gốc của repo, tạo môi trường chỉ dành cho dashboard bằng Python 3.10 trở lên. Giữ API trong `.venv` hiện tại vì cài Streamlit chung có thể đổi phiên bản thư viện của API.
+
+```bash
+python3.13 -m venv .venv-dashboard
+.venv-dashboard/bin/python -m pip install -r requirements-dashboard.txt
+.venv-dashboard/bin/python -m streamlit run dashboard_app.py
+```
+
+Mở URL local mà Streamlit in ra. Sáu panel xuất hiện ngay cả khi chưa có log; các tỷ lệ chưa có mẫu hiện `N/A`. Dashboard tự tải lại mỗi 30 giây khi tab còn mở. `ts` trong log là UTC, nên nhãn thời gian trên biểu đồ cũng dùng UTC.
+
+Để chụp baseline sau khi chạy practice, chuyển `data/logs.jsonl` cũ ra ngoài repo rồi khởi động lại API và chạy load test trong 10–15 phút. Làm vậy trước khi chụp ảnh để request lỗi của practice không đi vào error rate baseline. Giữ API và load test chạy trong môi trường API, không dùng `.venv-dashboard` cho chúng.
+
+Sau đó chụp dashboard khi `data/logs.jsonl` đã có dữ liệu thật. Validator ở phần trên chỉ kiểm tra YAML; ảnh dashboard có dữ liệu vẫn bắt buộc.
 
 ## Cách kiểm tra runtime
 

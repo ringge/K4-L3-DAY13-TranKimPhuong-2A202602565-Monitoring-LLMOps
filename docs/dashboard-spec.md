@@ -6,7 +6,7 @@ Dashboard chính cần đủ 6 nhóm thông tin:
 
 1. Latency P50/P95/P99 và TTFT P95.
 2. Traffic: request count hoặc QPS.
-3. Error rate, breakdown theo loại lỗi và retrieval success.
+3. Error rate, breakdown theo loại lỗi và retrieval success từ cả request thành công lẫn lỗi.
 4. Cost theo thời gian.
 5. Tổng token input/output.
 6. Quality proxy.

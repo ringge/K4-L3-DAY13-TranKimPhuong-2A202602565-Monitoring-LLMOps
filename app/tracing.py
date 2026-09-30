@@ -36,6 +36,21 @@ def get_langfuse_client():
     return get_client()
 
 
+class _NoopObservation:
+    def update(self, **kwargs: Any) -> None:
+        return None
+
+
+@contextmanager
+def start_child_observation(client: Any, **kwargs: Any):
+    start = getattr(client, "start_as_current_observation", None)
+    if not callable(start):
+        yield _NoopObservation()
+    else:
+        with start(**kwargs) as observation:
+            yield observation
+
+
 def tracing_enabled() -> bool:
     return LANGFUSE_SDK_AVAILABLE and bool(
         os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")
