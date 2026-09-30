@@ -4,13 +4,13 @@
 
 ## 1. Thông tin học viên
 
-- **Họ và tên:**
-- **MSSV:**
+- **Họ và tên:** Trần Kim Phương
+- **MSSV:** 2A202602565
 - **Lớp:** K4-L3B
-- **Repository URL:**
+- **Repository URL:** https://github.com/ringge/K4-L3-DAY13-TranKimPhuong-2A202602565-Monitoring-LLMOps
 - **Commit SHA cuối:**
 - **Challenge ID:**
-- **Tên project Langfuse cá nhân:** `day13-k4-l3b-<MSSV>`
+- **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602565`
 
 ## 2. Evidence index
 
@@ -37,13 +37,13 @@
 
 | Nội dung | Baseline | Kết quả cuối | Nhận xét |
 |---|---|---|---|
-| `validate_logs.py` | | | |
-| `validate_dashboard.py` | | | |
-| `pytest` | | | |
-| Số traces hợp lệ | | | |
-| Số PII leak | | | |
-| Latency P95 / TTFT P95 | | | |
-| Retrieval success rate | | | |
+| `validate_logs.py` | 30/100 | | |
+| `validate_dashboard.py` | 6/6 | | |
+| `pytest` | 22 passed | | |
+| Số traces hợp lệ | 10 | | Trong Langfuse. |
+| Số PII leak | 0 | | |
+| Latency P95 / TTFT P95 | 1,370 ms / 55 ms | | Tính từ 10 bản ghi `response_sent` trong `data/logs.jsonl`, theo cách tính percentile của ứng dụng. |
+| Retrieval success rate | 100% (10/10) | | Cả 10 bản ghi `response_sent` đều có `tool_success=true`; chỉ phản ánh lời gọi retriever hoàn tất. |
 
 ## 4. Logging và PII
 
