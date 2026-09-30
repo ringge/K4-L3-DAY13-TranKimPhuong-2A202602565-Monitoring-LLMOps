@@ -28,11 +28,21 @@ def _metric(label: str, value: float | None, suffix: str, decimals: int = 1) -> 
     st.metric(label, display)
 
 
-def _metadata(panel: PanelSpec, spec: DashboardSpec, extra: str = "") -> None:
+def _metadata(
+    panel: PanelSpec,
+    spec: DashboardSpec,
+    window: LogWindow,
+    extra: str = "",
+) -> None:
     direction = "≤" if panel.threshold.operator == "lte" else "≥"
     threshold = f"{direction} {panel.threshold.value:g} {panel.unit}"
+    time_range = (
+        "toàn bộ thời gian"
+        if window.range_minutes is None
+        else f"{window.range_minutes} phút gần nhất"
+    )
     st.caption(
-        f"{spec.time_range_minutes} phút UTC · làm mới {spec.refresh_seconds} giây · "
+        f"{time_range} UTC · làm mới {spec.refresh_seconds} giây · "
         f"đơn vị: {panel.unit} · ngưỡng {panel.threshold.aggregation}: {threshold}{extra}"
     )
 
@@ -46,6 +56,14 @@ def _chart(
     height: int = 220,
 ) -> None:
     points = [point for point in metrics.points if series is None or point.series == series]
+    if not points:
+        time_range = (
+            "toàn bộ thời gian"
+            if window.range_minutes is None
+            else f"{window.range_minutes} phút qua"
+        )
+        st.caption(f"Chưa có dữ liệu cho chỉ số này trong {time_range}.")
+        return
     rows = [
         {
             "minute": point.minute,
@@ -64,7 +82,9 @@ def _chart(
                 type="utc",
                 domain=[window.start.replace(second=0, microsecond=0).isoformat(), window.end.isoformat()],
             ),
-            axis=alt.Axis(format="%H:%M"),
+            axis=alt.Axis(
+                format="%Y-%m-%d %H:%M" if window.range_minutes is None else "%H:%M"
+            ),
         ),
         y=alt.Y("value:Q", title=unit),
         color=alt.Color("series:N", title="Chỉ số"),
@@ -74,17 +94,18 @@ def _chart(
             alt.Tooltip("value:Q", title=unit, format=",.2f"),
         ],
     )
-    rules = alt.Chart(pd.DataFrame({"threshold": list(thresholds)})).mark_rule(
-        color="#D96B28", strokeDash=[6, 4], strokeWidth=2
-    ).encode(y="threshold:Q")
-    st.altair_chart((lines + rules).properties(height=height), width="stretch")
-    if not points:
-        st.caption("Chưa có dữ liệu cho chỉ số này trong 60 phút qua.")
+    chart = lines
+    if thresholds:
+        rules = alt.Chart(pd.DataFrame({"threshold": list(thresholds)})).mark_rule(
+            color="#D96B28", strokeDash=[6, 4], strokeWidth=2
+        ).encode(y="threshold:Q")
+        chart = lines + rules
+    st.altair_chart(chart.properties(height=height), width="stretch")
 
 
 def _latency(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float) -> None:
     metrics = latency_metrics(window)
-    _metadata(panel, spec)
+    _metadata(panel, spec, window)
     cols = st.columns(4)
     for col, label, key in zip(cols, ("P50", "P95", "P99", "TTFT P95"), ("p50", "p95", "p99", "ttft_p95")):
         with col:
@@ -94,7 +115,7 @@ def _latency(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float)
 
 def _traffic(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float) -> None:
     metrics = traffic_metrics(window)
-    _metadata(panel, spec)
+    _metadata(panel, spec, window)
     cols = st.columns(2)
     with cols[0]:
         _metric("Requests", metrics.values["count"], "", 0)
@@ -105,7 +126,7 @@ def _traffic(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float)
 
 def _errors(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, retrieval_target: float) -> None:
     metrics = errors_metrics(window)
-    _metadata(panel, spec, f" · retrieval success ≥ {retrieval_target:g}%")
+    _metadata(panel, spec, window, f" · retrieval success ≥ {retrieval_target:g}%")
     cols = st.columns(2)
     with cols[0]:
         _metric("Error rate", metrics.values["error_rate_pct"], "%", 1)
@@ -123,14 +144,20 @@ def _errors(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, retrieval_
 
 def _cost(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float) -> None:
     metrics = cost_metrics(window)
-    _metadata(panel, spec, " · ngưỡng áp dụng cho tổng chi phí tích lũy trong 60 phút")
+    if window.range_minutes is None:
+        extra = " · tổng lũy kế toàn thời gian; ngưỡng cấu hình chỉ áp dụng cho 60 phút"
+        thresholds = ()
+    else:
+        extra = " · ngưỡng áp dụng cho tổng chi phí tích lũy trong cửa sổ đã chọn"
+        thresholds = (panel.threshold.value,)
+    _metadata(panel, spec, window, extra)
     _metric("Tổng chi phí", metrics.values["total"], " USD", 4)
-    _chart(window, metrics, "usd", (panel.threshold.value,))
+    _chart(window, metrics, "usd", thresholds)
 
 
 def _tokens(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float) -> None:
     metrics = tokens_metrics(window)
-    _metadata(panel, spec, " cho từng field")
+    _metadata(panel, spec, window, " cho từng field")
     cols = st.columns(2)
     with cols[0]:
         _metric("Input tokens", metrics.values["tokens_in"], "", 0)
@@ -141,7 +168,7 @@ def _tokens(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float) 
 
 def _quality(panel: PanelSpec, spec: DashboardSpec, window: LogWindow, _: float) -> None:
     metrics = quality_metrics(window)
-    _metadata(panel, spec)
+    _metadata(panel, spec, window)
     _metric("Mean quality", metrics.values["mean"], "", 3)
     _chart(window, metrics, "score_0_to_1", (panel.threshold.value,))
 
@@ -157,7 +184,14 @@ RENDERERS = {
 
 
 def render_dashboard(spec: DashboardSpec, retrieval_target: float) -> None:
-    window = read_log_window(datetime.now(timezone.utc), spec.time_range_minutes)
+    selection = st.radio(
+        "Khoảng thời gian",
+        ("60 phút gần nhất", "Toàn bộ thời gian"),
+        horizontal=True,
+        key="dashboard_time_range",
+    )
+    minutes = spec.time_range_minutes if selection == "60 phút gần nhất" else None
+    window = read_log_window(datetime.now(timezone.utc), minutes)
     st.caption(f"Dữ liệu đến {window.end:%Y-%m-%d %H:%M:%S} UTC · {len(window.events)} events trong cửa sổ")
     if window.skipped_lines:
         st.caption(f"Bỏ qua {window.skipped_lines} dòng log không hợp lệ.")

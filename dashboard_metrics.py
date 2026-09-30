@@ -28,6 +28,9 @@ def _minute(ts: datetime) -> datetime:
 
 
 def _minutes(window: LogWindow):
+    if window.range_minutes is None:
+        yield from sorted({_minute(row.ts) for row in window.events})
+        return
     minute = _minute(window.start)
     last = _minute(window.end)
     while minute <= last:

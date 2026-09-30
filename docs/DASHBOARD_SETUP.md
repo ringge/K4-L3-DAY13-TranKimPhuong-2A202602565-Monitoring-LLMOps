@@ -4,7 +4,7 @@
 
 Trường `query` trong YAML là pseudocode mô tả phép tính, không phải câu lệnh để copy nguyên vào mọi công cụ. Bạn chuyển cùng logic đó sang cú pháp của công cụ đã chọn.
 
-`dashboard_app.py` dựng dashboard Streamlit từ `data/logs.jsonl`. Ứng dụng đọc log một lần mỗi 30 giây, lọc 60 phút gần nhất theo UTC và hiển thị đúng sáu panel theo thứ tự trong `config/dashboard.yaml`. Dashboard chỉ giữ các field dùng cho số liệu; nó không hiển thị payload, preview, user ID hoặc session ID.
+`dashboard_app.py` dựng dashboard Streamlit từ `data/logs.jsonl`. Bộ chọn thời gian chuyển giữa 60 phút gần nhất và toàn bộ lịch sử log đã ghi đến thời điểm hiện tại. Ứng dụng đọc log một lần mỗi 30 giây và dùng cùng cửa sổ cho cả sáu panel theo thứ tự trong `config/dashboard.yaml`. Dashboard chỉ giữ các field dùng cho số liệu; nó không hiển thị payload, preview, user ID hoặc session ID.
 
 ## Mapping dữ liệu
 
@@ -17,7 +17,7 @@ Trường `query` trong YAML là pseudocode mô tả phép tính, không phải 
 | Tokens | `response_sent.tokens_in/tokens_out` | tổng theo từng field |
 | Quality | `response_sent.quality_score` | mean |
 
-Giữ time range mặc định 60 phút, refresh 30 giây và hiển thị threshold/SLO line. Giá trị chính xác nằm trong `config/dashboard.yaml`; không tự đổi contract chỉ để ảnh dashboard đẹp hơn.
+Giữ 60 phút làm lựa chọn mặc định, refresh 30 giây và hiển thị threshold/SLO line. Lựa chọn toàn bộ thời gian dùng nhãn ngày trên trục X và bỏ đường ngưỡng chi phí 60 phút khỏi tổng chi phí lũy kế. Giá trị contract chính xác nằm trong `config/dashboard.yaml`.
 
 ## Cách dựng
 

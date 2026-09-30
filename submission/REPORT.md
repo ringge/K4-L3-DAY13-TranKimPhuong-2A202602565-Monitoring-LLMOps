@@ -74,16 +74,14 @@
 
 ## 7. Điều tra challenge
 
-- **Challenge ID:**
-- **Khoảng thời gian điều tra:**
-- **Triệu chứng từ metrics:**
-- **Log line và correlation ID liên quan:**
-- **Trace ID và span gây ảnh hưởng:**
-- **Root cause:**
-- **Fix action:**
-- **Preventive measure:**
-
-> Gợi ý cách viết ngắn, không thay cho evidence thực tế: "Metric cho thấy `[latency/error/cost/quality]` bất thường trong `[khoảng thời gian]`. Log line `[event]` có `correlation_id=[...]` đại diện cho request bị ảnh hưởng. Trace cùng `correlation_id` cho thấy span `[retrieval/generation/prompt/tool]` có dấu hiệu `[chậm/lỗi/token tăng]`. Root cause là `[nguyên nhân suy ra từ evidence]`. Fix action là `[hành động khôi phục]`; preventive measure là `[alert/runbook/test/guardrail để ngăn tái diễn]`."
+- **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`.
+- **Khoảng thời gian điều tra:** 30/09/2026, 12:39:50–12:40:16 ICT (05:39:50–05:40:16 UTC), từ lúc log ghi `incident_enabled` đến response cuối của 5 request challenge.
+- **Triệu chứng từ metrics:** Dữ liệu cho panel latency trong `data/logs.jsonl` cho P95 = 2.672,4 ms, P50 = 2.667 ms. Cả 5/5 request có `latency_ms` từ 2.662 đến 2.673 ms, vượt ngưỡng 2.000 ms của challenge. TTFT chỉ 52–55 ms, error rate 0% và retrieval success 100%. P95 vẫn dưới ngưỡng 3.000 ms của dashboard và alert hiện tại, nên chưa đủ điều kiện kích hoạt `HighLatencyP95`.
+- **Log line và correlation ID liên quan:** `incident_enabled` lúc 05:39:50 UTC ghi `name=rag_slow`. Request `req-7ce1b8f9` có `request_received` lúc 05:40:03.437 UTC và `response_sent` lúc 05:40:06.109 UTC với `latency_ms=2670`, `ttft_ms=52`, `tool_name=retrieval`, `tool_success=true`. Hai dòng cùng `correlation_id=req-7ce1b8f9` trong `data/logs.jsonl`.
+- **Trace ID và span gây ảnh hưởng:** Trace Langfuse `ba0cad6baafb3c9b87f899f81a256c0d` có metadata `correlation_id=req-7ce1b8f9`. Span `retrieval` (`bdf76609054ef41a`) kéo dài 2.509 ms, chiếm khoảng 94% root `lab-agent-run` (2.670 ms); span `generation` chỉ 158 ms.
+- **Root cause:** Incident `rag_slow` được bật trước workload. Nhánh này gọi `time.sleep(2.5)` trong `retrieve()` tại [`app/mock_rag.py`](../app/mock_rag.py), khiến span retrieval chậm khoảng 2,5 giây dù trả kết quả thành công. `chat()` gọi agent đồng bộ trong async handler, nên 5 request gửi với concurrency 5 vẫn lần lượt đi qua đoạn chặn này.
+- **Fix action:** Tắt incident bằng `python scripts/inject_incident.py --disable` để khôi phục retrieval; chạy lại challenge workload và kiểm tra P95 cùng thời lượng span `retrieval` giảm dưới 2.000 ms. Với retrieval thật, thay lời gọi chặn event loop bằng I/O bất đồng bộ hoặc chạy tác vụ đồng bộ trong thread pool.
+- **Preventive measure:** Thêm cảnh báo P95 latency hoặc P95 span `retrieval` vượt 2.000 ms trong cửa sổ có đủ mẫu, vì alert hiện tại chỉ báo khi P95 > 3.000 ms liên tục 5 phút. Bổ sung kiểm thử tải đồng thời và runbook lọc log theo `correlation_id`, rồi so sánh các span trong trace trước khi xử lý.
 
 ## 8. Giải thích và tự đánh giá
 

@@ -74,6 +74,7 @@ class LogWindow:
     end: datetime
     events: tuple[LogEvent, ...]
     skipped_lines: int
+    range_minutes: int | None
 
 
 def _yaml_object(path: Path) -> dict:
@@ -186,9 +187,9 @@ def _event(row: dict, ts: datetime) -> LogEvent:
     )
 
 
-def read_log_window(now: datetime, minutes: int = 60) -> LogWindow:
+def read_log_window(now: datetime, minutes: int | None = 60) -> LogWindow:
     end = now.astimezone(timezone.utc)
-    start = end - timedelta(minutes=minutes)
+    start = end - timedelta(minutes=minutes) if minutes is not None else None
     rows: list[LogEvent] = []
     skipped = 0
     try:
@@ -206,9 +207,19 @@ def read_log_window(now: datetime, minutes: int = 60) -> LogWindow:
                 if ts is None:
                     skipped += 1
                     continue
-                if start <= ts <= end:
+                if ts <= end and (start is None or start <= ts):
                     rows.append(_event(row, ts))
     except FileNotFoundError:
         pass
     rows.sort(key=lambda row: row.ts)
-    return LogWindow(start=start, end=end, events=tuple(rows), skipped_lines=skipped)
+    if start is None:
+        start = min((row.ts for row in rows), default=end - timedelta(minutes=1))
+        if start >= end:
+            start = end - timedelta(minutes=1)
+    return LogWindow(
+        start=start,
+        end=end,
+        events=tuple(rows),
+        skipped_lines=skipped,
+        range_minutes=minutes,
+    )
